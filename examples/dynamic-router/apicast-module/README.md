@@ -46,8 +46,8 @@ bin/apicast -i 0 -m off
 The default catalog (`catalog.lua`) and the default configuration (`config.json`)
 provide a few examples that you can test:
 ```
-curl -D - http://localhost:8080/echo
-curl -D - http://localhost:8080/echo -H "x-env: prod"
-curl -D - http://localhost:8080/echo -H "x-env: dev"
-curl -D - http://localhost:8080/echo -H "x-env: bogus"
+curl -D - "http://localhost:8080/echo?user_key=test"
+curl -D - "http://localhost:8080/echo?user_key=test" -H "x-env: prod"
+curl -D - "http://localhost:8080/echo?user_key=test" -H "x-env: dev"
+curl -D - "http://localhost:8080/echo?user_key=test" -H "x-env: bogus"
 ```
