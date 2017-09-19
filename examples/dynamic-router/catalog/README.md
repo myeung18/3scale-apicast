@@ -32,7 +32,7 @@ return {
   -- First service
   ["123"] = { -- This is the 3scale service id
     -- Prod environment
-    prod = "http://prod.myfirstservice.corp"
+    prod = "http://prod.myfirstservice.corp",
 
     -- Dev environment
     dev = "http://dev.myfirstservice.corp"
