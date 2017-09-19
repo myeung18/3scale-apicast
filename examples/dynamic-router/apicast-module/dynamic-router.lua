@@ -18,16 +18,16 @@ local function get_upstream(service)
 
   -- Split the Catalog URL into components
   local url = resty_url.split(service_catalog_url)
-  local scheme, _, _, server, port, path =
+  local _, _, _, catalog_server, catalog_port, _ =
     url[1], url[2], url[3], url[4], url[5] or resty_url.default_port(url[1]), url[6] or ''
 
   -- Resolve the DNS name of the Catalog Server
-  ngx.ctx.catalog_upstream = resty_resolver:instance():get_servers(server, { port = port })
+  ngx.ctx.catalog_upstream = resty_resolver:instance():get_servers(catalog_server, { port = catalog_port })
 
   -- Share those variables with the Nginx sub-request
   local subrequest_vars = {
     catalog_url = service_catalog_url,
-    catalog_host = server,
+    catalog_host = catalog_server,
     service_name = service.id,
     environment = environment
   }
@@ -46,7 +46,7 @@ local function get_upstream(service)
 
   -- Split the new Backend URL into components
   url = resty_url.split(new_backend)
-  scheme, _, _, server, port, path =
+  local scheme, _, _, server, port, path =
     url[1], url[2], url[3], url[4], url[5] or resty_url.default_port(url[1]), url[6] or ''
 
   return {
