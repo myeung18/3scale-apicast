@@ -2,7 +2,7 @@ return {
   -- First service
   ["123"] = {
     -- Prod environment
-    prod = "http://prod.myfirstservice.corp"
+    prod = "http://prod.myfirstservice.corp",
 
     -- Dev environment
     dev = "http://dev.myfirstservice.corp"
