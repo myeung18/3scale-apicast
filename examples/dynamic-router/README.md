@@ -45,3 +45,10 @@ oc rollout latest apicast-staging
 ```
 
 Once, you get it to work on `apicast-staging`, you can do the same on `apicast-production`.
+
+## Development
+
+See each individual sub-project:
+ - [apicast-module](./apicast-module/)
+ - [catalog](./catalog/)
+
