@@ -6,36 +6,7 @@ local _M = { }
 local service_catalog_url
 local environment_header_name
 
-function _M.setup(proxy)
-  -- In case of error during initialization, we will fallback to the default behavior
-  local error = false
-
-  -- Get configuration from Environment Variables
-  service_catalog_url = os.getenv('DYNAMIC_ROUTER_CATALOG_URL')
-  if (service_catalog_url == nil) then
-    ngx.log(ngx.ERR, "No environment variable DYNAMIC_ROUTER_CATALOG_URL.")
-    error = true
-  else
-    ngx.log(ngx.INFO, "Using the catalog at " .. (service_catalog_url or "nil"))
-  end
-
-  environment_header_name = os.getenv('DYNAMIC_ROUTER_ENVIRONMENT_HEADER_NAME')
-  if (environment_header_name == nil) then
-    ngx.log(ngx.ERR, "No environment variable DYNAMIC_ROUTER_ENVIRONMENT_HEADER_NAME.")
-    error = true
-  else
-    ngx.log(ngx.INFO, "Using the header " .. (environment_header_name or "nil") .. " as environment")
-  end
-
-  if not error then
-    -- Update the Proxy Metatable with our custom function
-    proxy.get_upstream = get_upstream
-  else
-    ngx.log(ngx.ERR, "Errors during initialization. Dynamic Routing disabled.")
-  end
-end
-
-function get_upstream(service)
+local function get_upstream(service)
   service = service or ngx.ctx.service
   ngx.log(ngx.DEBUG, "Dynamically routing service " .. (service.id or "none"))
 
@@ -74,8 +45,8 @@ function get_upstream(service)
   end
 
   -- Split the new Backend URL into components
-  local url = resty_url.split(new_backend)
-  local scheme, _, _, server, port, path =
+  url = resty_url.split(new_backend)
+  scheme, _, _, server, port, path =
     url[1], url[2], url[3], url[4], url[5] or resty_url.default_port(url[1]), url[6] or ''
 
   return {
@@ -84,6 +55,35 @@ function get_upstream(service)
     uri  = scheme .. '://upstream' .. path,
     port = tonumber(port)
   }
+end
+
+function _M.setup(proxy)
+  -- In case of error during initialization, we will fallback to the default behavior
+  local error = false
+
+  -- Get configuration from Environment Variables
+  service_catalog_url = os.getenv('DYNAMIC_ROUTER_CATALOG_URL')
+  if (service_catalog_url == nil) then
+    ngx.log(ngx.ERR, "No environment variable DYNAMIC_ROUTER_CATALOG_URL.")
+    error = true
+  else
+    ngx.log(ngx.INFO, "Using the catalog at " .. (service_catalog_url or "nil"))
+  end
+
+  environment_header_name = os.getenv('DYNAMIC_ROUTER_ENVIRONMENT_HEADER_NAME')
+  if (environment_header_name == nil) then
+    ngx.log(ngx.ERR, "No environment variable DYNAMIC_ROUTER_ENVIRONMENT_HEADER_NAME.")
+    error = true
+  else
+    ngx.log(ngx.INFO, "Using the header " .. (environment_header_name or "nil") .. " as environment")
+  end
+
+  if not error then
+    -- Update the Proxy Metatable with our custom function
+    proxy.get_upstream = get_upstream
+  else
+    ngx.log(ngx.ERR, "Errors during initialization. Dynamic Routing disabled.")
+  end
 end
 
 return _M
