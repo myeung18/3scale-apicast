@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: apicast-build
+metadata:
+  annotations:
+    description: |-
+      A BuildConfig for OpenShift that builds images of Apicast from source.
+    openshift.io/display-name: Apicast BuildConfig
+    template.openshift.io/documentation-url: https://github.com/3scale/apicast
+    template.openshift.io/long-description: Builds images of Apicast
+    template.openshift.io/provider-display-name: 3scale
+    template.openshift.io/support-url: https://github.com/3scale/apicast/issues
+  name: apicast-build
+parameters:
+- description: The Apicast GIT repository to build.
+  displayName: GIT Repo URL
+  name: GIT_REPO
+  value: https://github.com/3scale/apicast.git
+
+- description: The GIT reference (branch/tag) to use.
+  displayName: GIT Reference
+  name: GIT_REF
+  value: master
+
+- description: The OpenResty S2I Builder Image to use.
+  displayName: OpenResty S2I Builder Image
+  name: OPENRESTY_BUILDER_IMAGE
+  value: quay.io/3scale/s2i-openresty-centos7:master
+
+objects:
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: apicast
+    name: apicast
+  spec:
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: apicast
+    name: s2i-openresty-centos7
+  spec:
+    tags:
+    - from:
+        kind: DockerImage
+        name: ${OPENRESTY_BUILDER_IMAGE}
+      name: builder
+    - from:
+        kind: DockerImage
+        name: ${OPENRESTY_BUILDER_IMAGE}-runtime
+      name: runtime
+
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: apicast
+    name: apicast
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: apicast:latest
+    source:
+      contextDir: gateway
+      git:
+        uri: "${GIT_REPO}"
+        ref: "${GIT_REF}"
+      type: Git
+    strategy:
+      sourceStrategy:
+        forcePull: true
+        from:
+          kind: ImageStreamTag
+          name: s2i-openresty-centos7:builder
+        runtimeImage:
+          kind: ImageStreamTag
+          name: s2i-openresty-centos7:runtime
+      type: Source
+    triggers:
+    - type: ConfigChange
+    - type: ImageChange
