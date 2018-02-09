@@ -5,15 +5,15 @@ labels:
 metadata:
   annotations:
     description: |-
-      A BuildConfig for OpenShift that builds images of Apicast from source.
-    openshift.io/display-name: Apicast BuildConfig
+      A BuildConfig for OpenShift that builds images of APIcast from source.
+    openshift.io/display-name: APIcast BuildConfig
     template.openshift.io/documentation-url: https://github.com/3scale/apicast
-    template.openshift.io/long-description: Builds images of Apicast
+    template.openshift.io/long-description: Builds images of APIcast
     template.openshift.io/provider-display-name: 3scale
     template.openshift.io/support-url: https://github.com/3scale/apicast/issues
   name: apicast-build
 parameters:
-- description: The Apicast GIT repository to build.
+- description: The APIcast GIT repository to build.
   displayName: GIT Repo URL
   name: GIT_REPO
   value: https://github.com/3scale/apicast.git
