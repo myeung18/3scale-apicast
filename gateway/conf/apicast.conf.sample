@@ -1,0 +1,38 @@
+{
+  "services": [
+    {
+      "id": TODO,
+      "backend_version": 1,
+      "backend_authentication_type": "service_token",
+      "backend_authentication_value": "TODO",
+      "proxy": {
+        "api_backend": "TODO",
+        "hosts": [
+          "localhost",
+          "127.0.0.1",
+          "TODO"
+        ],
+        "auth_user_key": "apikey",
+        "credentials_location": "headers",
+        "backend": {
+          "endpoint": "http://su1.3scale.net",
+          "host": "su1.3scale.net"
+        },
+        "policy_chain": [
+          { "name": "apicast.policy.phase_logger" },
+          { "name": "custom.policy.require_tls_certificate" },
+          { "name": "apicast.policy.apicast" },
+          { "name": "custom.policy.sso_certificate_registration" }
+        ],
+        "proxy_rules": [
+          {
+            "http_method": "POST",
+            "pattern": "/auth/realms/{realm}/register$",
+            "metric_system_name": "hits",
+            "delta": 1
+          }
+        ]
+      }
+    }
+  ]
+}
