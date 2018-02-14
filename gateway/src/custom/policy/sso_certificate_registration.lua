@@ -19,7 +19,7 @@ local function init_config(config)
   res.sso_client_id = config.sso_client_id or "admin-cli"
 
   -- Get other values either from provided config or environment variables
-  local envs = { "THREESCALE_PORTAL_ENDPOINT" }
+  local envs = { "THREESCALE_PORTAL_ENDPOINT", "SSO_BACK_HOSTNAME" }
   for i, env in ipairs(envs) do
     local item = string.lower(env)
     local value = config[item] or resty_env.get(env)
@@ -142,7 +142,8 @@ function _M:access(context, host)
   local realm = path_components[3]
   ngx.log(ngx.INFO, "Working on SSO realm ", realm)
 
-  local base_url = string.format("%s://%s:%u", sso_url.scheme, sso_url.host, sso_url.port or resty_url.default_port(sso_url.scheme))
+  -- The RH-SSO URL is built from the SSO_BACK_HOSTNAME environment variable
+  local base_url = string.format("https://%s", self.config.sso_back_hostname)
   local token_endpoint = resty_url.join(base_url, sso_url.path, "/protocol/openid-connect/token")
   local clients_endpoint = resty_url.join(base_url, "/auth/admin/realms", realm, "/clients")
 
