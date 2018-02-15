@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "---> Calling the openresty-s2i assemble script..."
+/usr/libexec/s2i/assemble
+
+echo "---> Installing dependencies (custom fix)..."
+rover install --roverfile /tmp/src/Roverfile --path .
