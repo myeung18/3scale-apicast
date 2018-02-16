@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Template
 metadata:
-  name: 3scale-gateway
+  name: 3scale-gateway-for-psd2
   annotations:
     description: "3scale API Gateway"
     iconClass: "icon-load-balancer"
@@ -9,60 +9,169 @@ metadata:
 objects:
 
 - apiVersion: v1
+  kind: Service
+  metadata:
+    name: "${NAME}"
+    annotations:
+      service.alpha.openshift.io/serving-cert-secret-name: "${NAME}-tls"
+  spec:
+    ports:
+    - name: apicast
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+    - name: management
+      port: 8090
+      protocol: TCP
+      targetPort: 8090
+    selector:
+      deploymentconfig: "${NAME}"
+
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: "${NAME}"
+  spec:
+    host: ${DSP2_ROUTE}
+    port:
+      targetPort: apicast
+    tls:
+      termination: Passthrough
+    to:
+      kind: Service
+      name: "${NAME}"
+      weight: 100
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: "${NAME}-apicast-conf"
+  data:
+    apicast.conf: |-
+      {
+        "services": [
+          {
+            "id": ${SERVICE_ID},
+            "backend_version": "oauth",
+            "backend_authentication_type": "service_token",
+            "backend_authentication_value": "${SERVICE_TOKEN}",
+            "proxy": {
+              "api_backend": "${DSP2_BACKEND}",
+              "hosts": [
+                "localhost",
+                "127.0.0.1",
+                "${DSP2_ROUTE}"
+              ],
+              "oidc_issuer_endpoint": "${OIDC_ISSUER_ENDPOINT}",
+              "authentication_method": "oidc",
+              "policy_chain": [
+                { "name": "apicast.policy.apicast" },
+                { "name": "custom.policy.require_tls_certificate" },
+                { "name": "custom.policy.decode_oidc_token" },
+                { "name": "custom.policy.bind_tls_certificate_with_oidc_token",
+                  "configuration": {}
+                },
+                {
+                  "name": "custom.policy.explode_oidc_token_as_http_headers",
+                  "configuration": {
+                    "X-Client-ID": "azp",
+                    "X-Customer-ID": "preferred_username"
+                  }
+                },
+                { "name": "custom.policy.check_oidc_roles",
+                  "configuration": {
+                    "realm_roles": {
+                      "aisp": "required"
+                    }
+                  }
+                }
+              ],
+              "proxy_rules": [
+                {
+                  "http_method": "GET",
+                  "pattern": "/",
+                  "metric_system_name": "hits",
+                  "delta": 1
+                },
+                {
+                  "http_method": "POST",
+                  "pattern": "/",
+                  "metric_system_name": "hits",
+                  "delta": 1
+                },
+                {
+                  "http_method": "PUT",
+                  "pattern": "/",
+                  "metric_system_name": "hits",
+                  "delta": 1
+                }
+              ]
+            }
+          }
+        ],
+        "oidc": [
+          {
+            "issuer": "${OIDC_ISSUER}",
+            "config": {
+              "public_key": "${OIDC_ISSUER_PUBLIC_KEY}",
+              "openid": {
+                "id_token_signing_alg_values_supported": [ "RS256" ]
+              }
+            }
+          }
+        ]
+      }
+
+- apiVersion: v1
   kind: DeploymentConfig
   metadata:
-    name: "${APICAST_NAME}"
+    name: "${NAME}"
   spec:
-    replicas: 2
+    replicas: 1
     selector:
-      deploymentconfig: "${APICAST_NAME}"
+      deploymentconfig: "${NAME}"
     strategy:
       type: Rolling
     template:
       metadata:
         labels:
-          deploymentconfig: "${APICAST_NAME}"
+          deploymentconfig: "${NAME}"
       spec:
         containers:
         - env:
-          - name: THREESCALE_PORTAL_ENDPOINT
-            valueFrom:
-              secretKeyRef:
-                name: "${CONFIGURATION_URL_SECRET}"
-                key: password
+          # Environment Variables used by this customization of APIcast
           - name: THREESCALE_CONFIG_FILE
-            value: "${CONFIGURATION_FILE_PATH}"
+            value: "/opt/app-root/src/conf/custom/apicast.conf"
+          - name: SSL_CERT_FILE
+            value: "/opt/app-root/src/conf/trust/ca-bundle.crt"
+          - name: SSL_CRL_FILE
+            value: "/opt/app-root/src/conf/trust/crl.pem"
+          - name: SSO_OVERRIDE_HOSTNAME
+            value: "${SSO_OVERRIDE_HOSTNAME}"
+          # APIcast standard environment variables
+          - name: BACKEND_ENDPOINT_OVERRIDE
+            value: "${BACKEND_ENDPOINT_OVERRIDE}"
           - name: THREESCALE_DEPLOYMENT_ENV
             value: "${DEPLOYMENT_ENVIRONMENT}"
           - name: RESOLVER
             value: "${RESOLVER}"
-          - name: APICAST_SERVICES
-            value: "${SERVICES_LIST}"
           - name: APICAST_CONFIGURATION_LOADER
             value: "${CONFIGURATION_LOADER}"
           - name: APICAST_BACKEND_CACHE_HANDLER
             value: "${BACKEND_CACHE_HANDLER}"
           - name: APICAST_LOG_LEVEL
             value: "${LOG_LEVEL}"
-          - name: APICAST_PATH_ROUTING_ENABLED
-            value: "${PATH_ROUTING}"
           - name: APICAST_RESPONSE_CODES
             value: "${RESPONSE_CODES}"
           - name: APICAST_CONFIGURATION_CACHE
             value: "${CONFIGURATION_CACHE}"
-          - name: REDIS_URL
-            value: "${REDIS_URL}"
-          - name: APICAST_OAUTH_TOKENS_TTL
-            value: "${OAUTH_TOKENS_TTL}"
           - name: APICAST_MANAGEMENT_API
             value: "${MANAGEMENT_API}"
           - name: OPENSSL_VERIFY
             value: "${OPENSSL_VERIFY}"
-          - name: APICAST_REPORTING_THREADS
-            value: "${REPORTING_THREADS}"
-          image: "${IMAGE_NAME}"
+          image: " "
           imagePullPolicy: Always
-          name: "${APICAST_NAME}"
+          name: "${NAME}"
           livenessProbe:
             httpGet:
               path: /status/live
@@ -76,99 +185,143 @@ objects:
             initialDelaySeconds: 15
             timeoutSeconds: 1
           ports:
+          - name: register
+            containerPort: 8444
+            protocol: TCP
           - name: proxy
-            containerPort: 8080
+            containerPort: 8443
             protocol: TCP
           - name: management
             containerPort: 8090
             protocol: TCP
+          volumeMounts:
+          - mountPath: /opt/app-root/src/conf/custom/
+            name: "${NAME}-apicast-conf"
+          - mountPath: /opt/app-root/src/conf/trust/
+            name: "${NAME}-ca"
+          - mountPath: /opt/app-root/src/conf/serving-cert/
+            name: "${NAME}-tls"
+        volumes:
+        - name: "${NAME}-apicast-conf"
+          configMap:
+            name: "${NAME}-apicast-conf"
+        - name: "${NAME}-ca"
+          configMap:
+            name: "${CA_TRUST_CONFIGMAP}"
+        - name: "${NAME}-tls"
+          secret:
+            secretName: "${NAME}-tls"
+
     triggers:
     - type: ConfigChange
-
-- apiVersion: v1
-  kind: Service
-  metadata:
-    name: "${APICAST_NAME}"
-  spec:
-    ports:
-    - name: proxy
-      port: 8080
-      protocol: TCP
-      targetPort: 8080
-    - name: management
-      port: 8090
-      protocol: TCP
-      targetPort: 8090
-    selector:
-      deploymentconfig: "${APICAST_NAME}"
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+        - "${NAME}"
+        from:
+          kind: ImageStreamTag
+          name: ${IMAGESTREAM_TAG}
+          namespace: ${IMAGESTREAM_NAMESPACE}
 
 parameters:
-- description: "Name of the secret containing the THREESCALE_PORTAL_ENDPOINT with the access-token or provider key"
-  value: apicast-configuration-url-secret
-  name: CONFIGURATION_URL_SECRET
+- description: The Red Hat SSO Realm URL with admin credentials
+  name: OIDC_ISSUER_ENDPOINT
   required: true
-- description: "Path to saved JSON file with configuration for the gateway. Has to be injected to the docker image as read only volume."
-  value:
-  name: CONFIGURATION_FILE_PATH
-  required: false
-- description: "Docker image to use."
-  value: 'quay.io/3scale/apicast:master'
-  name: IMAGE_NAME
+
+- description: The Red Hat SSO Realm URL
+  name: OIDC_ISSUER
+  required: true
+
+- description: The Red Hat SSO Realm Public Key
+  name: OIDC_ISSUER_PUBLIC_KEY
+  required: true
+
+- description: The private base URL of the DSP2 backend (https://api.backend:port)
+  name: DSP2_BACKEND
+  required: true
+
+- description: The public hostname of the DSP2 service
+  name: DSP2_ROUTE
+  required: true
+
+- description: The registration service id on the 3scale platform
+  name: SERVICE_ID
+  required: true
+
+- description: The registration service token on the 3scale platform
+  name: SERVICE_TOKEN
+  required: true
+
+- description: The hostname of the RH-SSO service
+  name: SSO_OVERRIDE_HOSTNAME
+  required: true
+
+- description: "URL of the 3scale backend, including credentials"
+  name: BACKEND_ENDPOINT_OVERRIDE
+  required: true
+
+- description: "Name of the ConfigMap holding the CA Bundle and the CRL Bundle"
+  name: CA_TRUST_CONFIGMAP
+  value: sso-proxy-ca
+  required: true
+
+- description: "The OpenShift ImageStreamTag that contains the customized APIcast image"
+  value: 'apicast:latest'
+  name: IMAGESTREAM_TAG
+  required: true
+
+- description: "The namespace of the OpenShift ImageStreamTag that contains the customized APIcast image"
+  value: 'openshift'
+  name: IMAGESTREAM_NAMESPACE
+  required: true
+
 - description: "Deployment environment. Can be sandbox or production."
   value: production
   name: DEPLOYMENT_ENVIRONMENT
   required: true
-- description: "Name for the 3scale API Gateway"
-  value: apicast
-  name: APICAST_NAME
+
+- description: "Name for this component"
+  value: apicast-dsp2
+  name: NAME
   required: true
+
 - description: "DNS Resolver for openresty, if empty it will be autodiscovered"
   value:
   name: RESOLVER
   required: false
-- description: "Subset of services to run. Use comma separated list of service ids (eg. 42,1337)"
-  value:
-  name: SERVICES_LIST
-  required: false
+
 - name: CONFIGURATION_LOADER
   description: "When to load configuration. If on gateway start or incoming request. Allowed values are: lazy, boot."
-  value: boot
+  value: lazy
   required: false
+
 - name: BACKEND_CACHE_HANDLER
   description: "How to handle and cache backend authorization responses. Can be one of: strict, resilient."
   value: strict
   required: false
+
 - description: "Log level. One of the following: debug, info, notice, warn, error, crit, alert, or emerg."
   name: LOG_LEVEL
+  value: info
   required: false
-- description: "Enable path routing. Experimental feature."
-  name: PATH_ROUTING
-  required: false
-  value: "false"
+
 - description: "Enable logging response codes to 3scale."
   value: "false"
   name: RESPONSE_CODES
   required: false
+
 - name: CONFIGURATION_CACHE
   description: "For how long to cache the downloaded configuration in seconds. Can be left empty, 0 or greater than 60."
-  value: ""
+  value: "0"
   required: false
-- description: "Redis URL. Required for OAuth2 integration. ex: redis://PASSWORD@127.0.0.1:6379/0"
-  name: REDIS_URL
-  required: false
-- description: "TTL (in seconds) of the oauth tokens created."
-  name: OAUTH_TOKENS_TTL
-  required: false
-  value: "604800"
+
 - name: MANAGEMENT_API
   description: "Scope of the Management API. Can be disabled, status or debug. At least status required for health checks."
   required: false
   value: "status"
+
 - name: OPENSSL_VERIFY
   description: "Turn on/off the OpenSSL peer verification. Can be set to true/false."
   required: true
   value: "false"
-- name: REPORTING_THREADS
-  description: "Number of asynchronous reporting threads. Experimental feature."
-  required: false
-  value: "0"
