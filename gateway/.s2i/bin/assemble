@@ -1,0 +1,8 @@
+#!/bin/sh
+
+echo "---> Calling the openresty-s2i assemble script..."
+/usr/libexec/s2i/assemble
+
+echo "---> Installing dependencies..."
+luarocks install --tree $PWD/lua_modules/ --only-deps apicast-0.1-0.rockspec
+luarocks install --tree $PWD/lua_modules/ --server=http://luarocks.org/dev openssl

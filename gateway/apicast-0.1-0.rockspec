@@ -12,6 +12,7 @@ dependencies = {
   'liquid',
   'argparse',
   'penlight',
+  'sha1'
 }
 build = {
    type = "builtin",
